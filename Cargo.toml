@@ -1,0 +1,13 @@
+[package]
+name = "pixtend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+deku = "0.17"
+rppal = "0.19"
+thiserror = "1.0"
+
+[[example]]
+name = "digital_outputs"
+path = "examples/digital_outputs.rs"
