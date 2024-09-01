@@ -1,3 +1,4 @@
+use crate::error::PiXtendError;
 use deku::prelude::*;
 
 #[derive(Debug, DekuRead, DekuWrite)]
@@ -6,10 +7,24 @@ pub struct Retain {
     pub storage: Vec<u8>,
 }
 
+impl Retain {
+    pub fn set_retain_data(&mut self, mut data: Vec<u8>) -> Result<(), PiXtendError> {
+        match data.len() {
+            0..=64 => {
+                data.resize(64, 0);
+                self.storage = data;
+            }
+            _ => return Err(PiXtendError::InvalidRetainDataLength(data.len())),
+        }
+
+        Ok(())
+    }
+}
+
 impl Default for Retain {
     fn default() -> Self {
         Self {
-            storage: vec![0x00; 64],
+            storage: vec![0; 64],
         }
     }
 }

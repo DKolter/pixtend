@@ -1,5 +1,7 @@
 use deku::prelude::*;
 
+use crate::{error::PiXtendError, GpioConfig};
+
 #[derive(Debug, DekuRead, DekuWrite, Default)]
 pub struct GpioOut {
     #[deku(pad_bits_before = "4")]
@@ -11,6 +13,39 @@ pub struct GpioOut {
     pub gpio1: bool,
     #[deku(bits = "1")]
     pub gpio0: bool,
+}
+
+impl GpioOut {
+    pub fn set_gpio_config(&mut self, index: u8, config: GpioConfig) -> Result<(), PiXtendError> {
+        if index > 3 {
+            return Err(PiXtendError::InvalidGpioOutputIndex(index));
+        }
+
+        // Only change the value if the config is an input with a pull-up resistor
+        if config == GpioConfig::Input(true) {
+            match index {
+                0 => self.gpio0 = true,
+                1 => self.gpio1 = true,
+                2 => self.gpio2 = true,
+                3 => self.gpio3 = true,
+                _ => return Err(PiXtendError::InvalidGpioOutputIndex(index)),
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn set_gpio_output(&mut self, index: u8, value: bool) -> Result<(), PiXtendError> {
+        match index {
+            0 => self.gpio0 = value,
+            1 => self.gpio1 = value,
+            2 => self.gpio2 = value,
+            3 => self.gpio3 = value,
+            _ => return Err(PiXtendError::InvalidGpioOutputIndex(index)),
+        }
+
+        Ok(())
+    }
 }
 
 #[test]

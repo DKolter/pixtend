@@ -11,3 +11,19 @@ thiserror = "1.0"
 [[example]]
 name = "digital_outputs"
 path = "examples/digital_outputs.rs"
+
+[[example]]
+name = "relay_outputs"
+path = "examples/relay_outputs.rs"
+
+[[example]]
+name = "gpio_outputs"
+path = "examples/gpio_outputs.rs"
+
+[[example]]
+name = "safe_mode"
+path = "examples/safe_mode.rs"
+
+[[example]]
+name = "watchdog"
+path = "examples/watchdog.rs"

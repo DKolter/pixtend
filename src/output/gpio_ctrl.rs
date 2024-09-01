@@ -1,3 +1,4 @@
+use crate::{error::PiXtendError, GpioConfig};
 use deku::prelude::*;
 
 #[derive(Debug, DekuRead, DekuWrite, Default)]
@@ -18,6 +19,33 @@ pub struct GpioCtrl {
     pub io1: bool,
     #[deku(bits = "1")]
     pub io0: bool,
+}
+
+impl GpioCtrl {
+    pub fn set_gpio_config(&mut self, index: u8, config: GpioConfig) -> Result<(), PiXtendError> {
+        if index > 3 {
+            return Err(PiXtendError::InvalidGpioOutputIndex(index));
+        }
+
+        let ios = [&mut self.io0, &mut self.io1, &mut self.io2, &mut self.io3];
+        *ios[index as usize] = match config {
+            GpioConfig::Output => true,
+            _ => false,
+        };
+
+        let sensors = [
+            &mut self.sens0,
+            &mut self.sens1,
+            &mut self.sens2,
+            &mut self.sens3,
+        ];
+        *sensors[index as usize] = match config {
+            GpioConfig::Sensor => true,
+            _ => false,
+        };
+
+        Ok(())
+    }
 }
 
 #[test]

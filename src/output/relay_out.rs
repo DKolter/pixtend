@@ -1,3 +1,4 @@
+use crate::error::PiXtendError;
 use deku::prelude::*;
 
 #[derive(Debug, DekuRead, DekuWrite, Default)]
@@ -11,6 +12,20 @@ pub struct RelayOut {
     pub relay1: bool,
     #[deku(bits = "1")]
     pub relay0: bool,
+}
+
+impl RelayOut {
+    pub fn set_relay_output(&mut self, index: u8, value: bool) -> Result<(), PiXtendError> {
+        match index {
+            0 => self.relay0 = value,
+            1 => self.relay1 = value,
+            2 => self.relay2 = value,
+            3 => self.relay3 = value,
+            _ => return Err(PiXtendError::InvalidRelayOutputIndex(index)),
+        }
+
+        Ok(())
+    }
 }
 
 #[test]

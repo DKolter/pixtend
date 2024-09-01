@@ -8,7 +8,7 @@ use pwm::Pwm;
 use relay_out::RelayOut;
 use retain::Retain;
 use system::System;
-use watchdog::Watchdog;
+pub use watchdog::Watchdog;
 
 mod digital_debounce;
 mod digital_out;
