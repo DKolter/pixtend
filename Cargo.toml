@@ -45,6 +45,10 @@ name = "gpio_inputs"
 path = "examples/gpio_inputs.rs"
 
 [[example]]
+name = "gpio_pullups"
+path = "examples/gpio_pullups.rs"
+
+[[example]]
 name = "sensor_inputs"
 path = "examples/sensor_inputs.rs"
 
