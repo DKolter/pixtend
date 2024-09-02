@@ -5,6 +5,7 @@ use std::time::Duration;
 
 fn main() {
     let mut pixtend = PiXtend::new().unwrap();
+    pixtend.set_gpio_pullup_enable(true);
     for i in 0..=3 {
         pixtend.set_gpio_config(i, GpioConfig::Input(true)).unwrap();
     }
