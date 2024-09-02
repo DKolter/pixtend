@@ -385,13 +385,12 @@ impl PiXtend {
             std::thread::sleep(COMMUNICATION_DELAY - elapsed);
         }
 
-        // Write the output to the PiXtend board
+        // Calculate the CRC values
         self.output.update()?;
-        self.spi.write(&self.output.to_bytes()?)?;
 
-        // Read the response from the PiXtend board
+        // Transfer the data and read the response
         let mut buffer = [0u8; 111];
-        let bytes_read = self.spi.read(&mut buffer)?;
+        let bytes_read = self.spi.transfer(&mut buffer, &self.output.to_bytes()?)?;
         if bytes_read != 111 {
             return Err(PiXtendError::InvalidSpiResponseLength(bytes_read));
         }
