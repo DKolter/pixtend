@@ -10,6 +10,8 @@ use retain::Retain;
 use system::System;
 pub use watchdog::Watchdog;
 
+use crate::utils::calc_crc16;
+
 mod digital_debounce;
 mod digital_out;
 mod gpio_ctrl;
@@ -24,12 +26,10 @@ mod watchdog;
 #[derive(Debug, DekuRead, DekuWrite, Default)]
 pub struct Output {
     pub header: Header,
-    #[deku(endian = "little")]
-    #[deku(update = "self.calculate_header_crc()")]
+    #[deku(endian = "little", update = "self.calculate_header_crc()")]
     header_crc: u16,
     pub data: Data,
-    #[deku(endian = "little")]
-    #[deku(update = "self.calculate_data_crc()")]
+    #[deku(endian = "little", update = "self.calculate_data_crc()")]
     data_crc: u16,
 }
 
@@ -56,33 +56,11 @@ pub struct Data {
 
 impl Output {
     fn calculate_header_crc(&self) -> u16 {
-        let mut crc = 0xFFFF;
-        for byte in self.header.to_bytes().into_iter().flatten() {
-            crc = Self::calc_crc16(crc, byte);
-        }
-        crc
+        calc_crc16(self.header.to_bytes().into_iter().flatten())
     }
 
     fn calculate_data_crc(&self) -> u16 {
-        let mut crc = 0xFFFF;
-        for byte in self.data.to_bytes().into_iter().flatten() {
-            crc = Self::calc_crc16(crc, byte);
-        }
-        crc
-    }
-
-    fn calc_crc16(mut crc: u16, byte: u8) -> u16 {
-        crc ^= byte as u16;
-
-        for _ in 0..8 {
-            if crc & 1 != 0 {
-                crc = (crc >> 1) ^ 0xA001;
-            } else {
-                crc >>= 1;
-            }
-        }
-
-        crc
+        calc_crc16(self.data.to_bytes().into_iter().flatten())
     }
 }
 

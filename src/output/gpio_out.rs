@@ -1,6 +1,5 @@
-use deku::prelude::*;
-
 use crate::{error::PiXtendError, GpioConfig};
+use deku::prelude::*;
 
 #[derive(Debug, DekuRead, DekuWrite, Default)]
 pub struct GpioOut {
