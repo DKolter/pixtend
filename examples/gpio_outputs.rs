@@ -11,13 +11,13 @@ fn main() {
     loop {
         for i in 0..=3 {
             pixtend.set_gpio_output(i, true).unwrap();
-            pixtend.write().unwrap();
+            pixtend.read_write().unwrap();
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
 
         for i in 0..=3 {
             pixtend.set_gpio_output(i, false).unwrap();
-            pixtend.write().unwrap();
+            pixtend.read_write().unwrap();
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     }

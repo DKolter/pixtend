@@ -27,3 +27,27 @@ path = "examples/safe_mode.rs"
 [[example]]
 name = "watchdog"
 path = "examples/watchdog.rs"
+
+[[example]]
+name = "versions"
+path = "examples/versions.rs"
+
+[[example]]
+name = "digital_inputs"
+path = "examples/digital_inputs.rs"
+
+[[example]]
+name = "analog_inputs"
+path = "examples/analog_inputs.rs"
+
+[[example]]
+name = "gpio_inputs"
+path = "examples/gpio_inputs.rs"
+
+[[example]]
+name = "sensor_inputs"
+path = "examples/sensor_inputs.rs"
+
+[[example]]
+name = "retain"
+path = "examples/retain.rs"

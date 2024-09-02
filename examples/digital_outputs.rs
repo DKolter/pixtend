@@ -7,13 +7,13 @@ fn main() {
     loop {
         for i in 0..=11 {
             pixtend.set_digital_output(i, true).unwrap();
-            pixtend.write().unwrap();
+            pixtend.read_write().unwrap();
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
 
         for i in 0..=11 {
             pixtend.set_digital_output(i, false).unwrap();
-            pixtend.write().unwrap();
+            pixtend.read_write().unwrap();
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     }
