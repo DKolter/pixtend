@@ -55,3 +55,7 @@ path = "examples/sensor_inputs.rs"
 [[example]]
 name = "retain"
 path = "examples/retain.rs"
+
+[[example]]
+name = "analog_outputs"
+path = "examples/analog_outputs.rs"

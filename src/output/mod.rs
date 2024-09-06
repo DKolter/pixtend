@@ -1,3 +1,4 @@
+use crate::utils::calc_crc16;
 use deku::prelude::*;
 use digital_debounce::DigitalDebounce;
 use digital_out::DigitalOut;
@@ -8,10 +9,8 @@ use pwm::Pwm;
 use relay_out::RelayOut;
 use retain::Retain;
 use system::System;
-pub use watchdog::Watchdog;
 
-use crate::utils::calc_crc16;
-
+mod dac;
 mod digital_debounce;
 mod digital_out;
 mod gpio_ctrl;
@@ -22,6 +21,10 @@ mod relay_out;
 mod retain;
 mod system;
 mod watchdog;
+
+pub use dac::Dac;
+pub use pwm::PwmPrescaler;
+pub use watchdog::Watchdog;
 
 #[derive(Debug, DekuRead, DekuWrite, Default)]
 pub struct Output {

@@ -1,7 +1,7 @@
 use deku::prelude::*;
 use error::PiXtendError;
 use input::{ErrorCode, Input};
-use output::Output;
+use output::{Dac, Output};
 use rppal::{
     gpio::Gpio,
     spi::{Bus, Mode, SlaveSelect, Spi},
@@ -12,21 +12,26 @@ mod error;
 mod gpio_config;
 mod input;
 mod output;
+mod pwm_config;
 mod utils;
 
 pub use gpio_config::GpioConfig;
 pub use input::{ReferenceVoltage, SensorKind, Warnings};
-pub use output::Watchdog;
+pub use output::{PwmPrescaler, Watchdog};
+pub use pwm_config::PwmConfig;
 
 const SPI_ENABLE_PIN: u8 = 24;
 const SPI_CLOCK_SPEED: u32 = 700_000;
 const COMMUNICATION_DELAY: Duration = Duration::from_millis(30);
 
 pub struct PiXtend {
-    spi: Spi,
+    spi_pixtend: Spi,
+    spi_dac: Spi,
     input: Option<Input>,
     output: Output,
     gpio_configs: [GpioConfig; 4],
+    pwm_configs: [PwmConfig; 3],
+    dac_configs: [Dac; 2],
     last_read: Instant,
 }
 
@@ -38,20 +43,26 @@ impl PiXtend {
             .into_output_high()
             .set_reset_on_drop(false);
 
-        // Create the SPI instance for PiXtend communication
-        let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, SPI_CLOCK_SPEED, Mode::Mode0)?;
+        // Create the SPI instances for communication with the PiXtend board
+        let spi_pixtend = Spi::new(Bus::Spi0, SlaveSelect::Ss0, SPI_CLOCK_SPEED, Mode::Mode0)?;
+        let spi_dac = Spi::new(Bus::Spi0, SlaveSelect::Ss1, SPI_CLOCK_SPEED, Mode::Mode0)?;
 
         // Create a default Output instance
         let output = Output::default();
 
-        // Create default GPIO configurations
+        // Create default configurations
         let gpio_configs = [GpioConfig::default(); 4];
+        let pwm_configs = [PwmConfig::default(); 3];
+        let dac_configs = [Dac::new(Channel::A, 0.0), Dac::new(Channel::B, 0.0)];
 
         Ok(Self {
-            spi,
+            spi_pixtend,
+            spi_dac,
             input: None,
             output,
             gpio_configs,
+            pwm_configs,
+            dac_configs,
             last_read: Instant::now(),
         })
     }
@@ -146,10 +157,22 @@ impl PiXtend {
     /// - `GpioConfig::Sensor`: The GPIO is configured as a onewire sensor input, for example
     /// for a DHT11, DHT22 or AM2302 sensor
     ///
-    /// Valid indexes are `0` to `3`, returns an error if the index is invalid.
-    /// Also returns an error if you are trying to configure a GPIO as an input with a pull-up
-    /// resistor, but the GPIO pullup enable bit is not globally enabled via `set_gpio_pullup_enable`.
+    /// Returns an error in the following cases:
+    /// - Index not in the valid range of `0` to `3`
+    /// - Trying to configure a GPIO sensor input while a PWM output is already configured
+    /// - Trying to configure a GPIO pullup resistor without first enabling it globally via
+    /// `set_gpio_pullup_enable`
     pub fn set_gpio_config(&mut self, index: u8, config: GpioConfig) -> Result<(), PiXtendError> {
+        // Check if a PWM output is configured at the same time
+        if config == GpioConfig::Sensor
+            && self
+                .pwm_configs
+                .iter()
+                .any(|config| *config != PwmConfig::Deactivated)
+        {
+            return Err(PiXtendError::PwmAndDhtExclusive);
+        }
+
         // To enable a pullup resistor on an input GPIO, the GPIO pullup enable bit must be set
         if config == GpioConfig::Input(true) && !self.output.header.system.gpio_pullup_enable {
             return Err(PiXtendError::GpioPullupNotGloballyEnabled);
@@ -166,7 +189,8 @@ impl PiXtend {
     }
 
     /// Writes the given value to the GPIO output with the given index.
-    /// Valid indexes are `0` to `3`, returns an error if the index is invalid.
+    /// Returns an error if the given index is invalid (0 to 3) or if the GPIO is not configured
+    /// as an output.
     pub fn set_gpio_output(&mut self, index: u8, value: bool) -> Result<(), PiXtendError> {
         // Check if the given index is valid
         if index > 3 {
@@ -194,6 +218,162 @@ impl PiXtend {
             .set_gpio_debounce(group, value)
     }
 
+    /// Configures the PWM output for the group with the given index. Each group has two channels
+    /// (A and B). The configuration can be one of the following:
+    /// - `PwmConfig::Deactivated`: The PWM output is deactivated
+    /// - `PwmConfig::Servo`: The PWM output is configured for servos with a frequency of 50Hz
+    /// - `PwmConfig::DutyCycle`: The PWM output group can set individual duty cycles for channel A
+    /// and B, but they share the same frequency, which is set via the prescaler and frequency
+    /// - `PwmConfig::Universal`: The PWM output group can only configure frequency and duty
+    /// cycle of channel A, while channel B always has 50% duty cycle and half the frequency of A
+    /// - `PwmConfig::Frequency`: The PWM output group can set individual frequencies for channel
+    /// A and B, but they both have a duty cycle of 50%
+    /// Valid indexes are `0` to `2`, returns an error if the index is invalid.
+    pub fn set_pwm_config(&mut self, index: u8, config: PwmConfig) -> Result<(), PiXtendError> {
+        // Check if any DHT sensors are configured, which is not allowed
+        if self
+            .gpio_configs
+            .iter()
+            .any(|config| *config == GpioConfig::Sensor)
+        {
+            return Err(PiXtendError::PwmAndDhtExclusive);
+        }
+
+        // Set the PWM configuration
+        self.output.data.pwm.set_pwm_config(index, config)?;
+        *self
+            .pwm_configs
+            .get_mut(index as usize)
+            .ok_or(PiXtendError::InvalidPwmOutputGroupIndex(index))? = config;
+
+        Ok(())
+    }
+
+    /// Sets the PWM servo position for the given index and channel as a value between `0` and
+    /// `16000`. The value is linearly mapped to the pulse width between `1ms` and `2ms`, where
+    /// 1ms is the minimum position and 2ms is the maximum position. The frequency is always 50Hz.
+    /// Returns an error if the given index is invalid (0 to 2) or if the PWM is not configured
+    /// as a servo.
+    ///
+    /// # Example
+    /// We want to set the servo position of PWM 0A to half of the maximum position:
+    /// ```no_run
+    /// # use pixtend::{PiXtend, PwmConfig, Channel};
+    /// # let mut pixtend = PiXtend::new().unwrap();
+    /// pixtend.set_pwm_config(0, PwmConfig::Servo { channel_a: true, channel_b: true });
+    /// pixtend.set_pwm_servo(0, Channel::A, 8000).unwrap();
+    /// ```
+    pub fn set_pwm_servo(
+        &mut self,
+        index: u8,
+        channel: Channel,
+        value: u16,
+    ) -> Result<(), PiXtendError> {
+        // Check if the given index is valid
+        if index > 2 {
+            return Err(PiXtendError::InvalidPwmOutputGroupIndex(index));
+        }
+
+        // Check if the pwm is configured as a servo
+        if !matches!(self.pwm_configs[index as usize], PwmConfig::Servo { .. }) {
+            return Err(PiXtendError::PwmNotConfiguredAsServo(index));
+        }
+
+        self.output
+            .data
+            .pwm
+            .set_channel_value(index, channel, value)
+    }
+
+    /// Sets the PWM duty cycle for the given index and channel as a value between `0` and
+    /// the configured `frequency`, where `0` is 0% duty cycle and the configured frequency is
+    /// 100% duty cycle.
+    /// Returns an error if the given index is invalid (0 to 2) or if the PWM is not configured
+    /// for DutyCycleMode or if the channel is set to B for a Universal mode (only channel A is
+    /// configurable in Universal mode).
+    ///
+    /// # Example
+    /// We want to set the duty cycle of PWM 0A to `50%` with 1 Hz:
+    /// ```no_run
+    /// # use pixtend::{PiXtend, PwmConfig, Channel, PwmPrescaler};
+    /// # let mut pixtend = PiXtend::new().unwrap();
+    /// pixtend.set_pwm_config(0, PwmConfig::DutyCycle {
+    ///    prescaler: PwmPrescaler::Prescale62_5kHz,
+    ///    frequency: 31250,
+    ///    channel_a: true,
+    ///    channel_b: true,
+    /// });
+    /// pixtend.set_pwm_duty_cycle(0, Channel::A, 15625).unwrap();
+    /// ```
+    pub fn set_pwm_duty_cycle(
+        &mut self,
+        index: u8,
+        channel: Channel,
+        value: u16,
+    ) -> Result<(), PiXtendError> {
+        // Check if the given index is valid
+        if index > 2 {
+            return Err(PiXtendError::InvalidPwmOutputGroupIndex(index));
+        }
+
+        // The duty cycle is only configurable for both channels in DutyCycle mode
+        // and for channel A in Universal mode
+        if !matches!(
+            (self.pwm_configs[index as usize], channel),
+            (PwmConfig::DutyCycle { .. }, _) | (PwmConfig::Universal { .. }, Channel::A)
+        ) {
+            return Err(PiXtendError::PwmNotConfiguredForDutyCycle(index));
+        }
+
+        self.output
+            .data
+            .pwm
+            .set_channel_value(index, channel, value)
+    }
+
+    /// Sets the PWM frequency for the given index. The final frequency of the channel is
+    /// calculated with the following formula:
+    /// `frequency = prescaler / 2 / value`
+    ///
+    /// # Example
+    /// We want to set the frequency of PWM 0A to `1 Hz`:
+    /// 1 Hz = PwmPrescaler::Prescale62_5kHz / 2 / 31250
+    /// ```no_run
+    /// # use pixtend::{PiXtend, PwmConfig, Channel, PwmPrescaler};
+    /// # let mut pixtend = PiXtend::new().unwrap();
+    /// pixtend.set_pwm_config(0, PwmConfig::Frequency {
+    ///     prescaler: PwmPrescaler::Prescale62_5kHz,
+    ///     channel_a: true,
+    ///     channel_b: false,
+    /// }).unwrap();
+    ///
+    /// pixtend.set_pwm_frequency(0, Channel::A, 31250).unwrap();
+    /// ```
+    pub fn set_pwm_frequency(
+        &mut self,
+        index: u8,
+        channel: Channel,
+        value: u16,
+    ) -> Result<(), PiXtendError> {
+        // Check if the given index is valid
+        if index > 2 {
+            return Err(PiXtendError::InvalidPwmOutputGroupIndex(index));
+        }
+
+        // Check if the pwm is configured for frequency
+        if !matches!(
+            self.pwm_configs[index as usize],
+            PwmConfig::Frequency { .. }
+        ) {
+            return Err(PiXtendError::PwmNotConfiguredAsFrequency(index));
+        }
+
+        self.output
+            .data
+            .pwm
+            .set_channel_value(index, channel, value)
+    }
+
     /// Retain data can be used to store at most 64 bytes of data in the PiXtend board. This data
     /// is retained even after a power cycle. The data can be read and written by the Raspberry
     /// Pi. If less than 64 are passed, the remaining bytes are filled with zeros.
@@ -206,6 +386,13 @@ impl PiXtend {
         }
 
         self.output.data.retain.set_retain_data(data)
+    }
+
+    /// Writes the given voltage to the analog output with the given channel. The voltage is
+    /// clamped between `0V` and `10V`.
+    pub fn set_analog_output(&mut self, channel: Channel, voltage: f64) {
+        let dac = Dac::new(channel, voltage);
+        self.dac_configs[channel as usize] = dac;
     }
 
     /// Reads the firmware version of the PiXtend board.
@@ -390,7 +577,9 @@ impl PiXtend {
 
         // Transfer the data and read the response
         let mut buffer = [0u8; 111];
-        let bytes_read = self.spi.transfer(&mut buffer, &self.output.to_bytes()?)?;
+        let bytes_read = self
+            .spi_pixtend
+            .transfer(&mut buffer, &self.output.to_bytes()?)?;
         if bytes_read != 111 {
             return Err(PiXtendError::InvalidSpiResponseLength(bytes_read));
         }
@@ -421,6 +610,27 @@ impl PiXtend {
         // Store the input for read access
         self.input = Some(input);
 
+        // Write the two DAC values to the DAC SPI
+        for dac in self.dac_configs {
+            self.spi_dac.write(&dac.to_bytes()?)?;
+        }
+
         Ok(())
     }
+
+    /// Resets the PiXtend instance to its default state. This includes resetting the output,
+    /// input, GPIO configurations and PWM configurations.
+    pub fn reset(&mut self) {
+        self.output = Output::default();
+        self.input = None;
+        self.gpio_configs = [GpioConfig::default(); 4];
+        self.pwm_configs = [PwmConfig::default(); 3];
+        self.dac_configs = [Dac::default(); 2];
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Channel {
+    A,
+    B,
 }

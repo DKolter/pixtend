@@ -54,4 +54,14 @@ pub enum PiXtendError {
     InvalidAnalogCurrentInputIndex(u8),
     #[error("Invalid gpio input index: {0}")]
     InvalidGpioInputIndex(u8),
+    #[error("PWM and DHT are exclusive, cannot use both at the same time")]
+    PwmAndDhtExclusive,
+    #[error("Invalid PWM output group index: {0}")]
+    InvalidPwmOutputGroupIndex(u8),
+    #[error("PWM not configured as servo: {0}")]
+    PwmNotConfiguredAsServo(u8),
+    #[error("PWM not configured as duty cycle or tried to set channel B for universal {0}")]
+    PwmNotConfiguredForDutyCycle(u8),
+    #[error("PWM not configured as frequency: {0}")]
+    PwmNotConfiguredAsFrequency(u8),
 }

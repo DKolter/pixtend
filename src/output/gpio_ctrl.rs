@@ -28,10 +28,7 @@ impl GpioCtrl {
         }
 
         let ios = [&mut self.io0, &mut self.io1, &mut self.io2, &mut self.io3];
-        *ios[index as usize] = match config {
-            GpioConfig::Output => true,
-            _ => false,
-        };
+        *ios[index as usize] = matches!(config, GpioConfig::Output);
 
         let sensors = [
             &mut self.sens0,
@@ -39,10 +36,7 @@ impl GpioCtrl {
             &mut self.sens2,
             &mut self.sens3,
         ];
-        *sensors[index as usize] = match config {
-            GpioConfig::Sensor => true,
-            _ => false,
-        };
+        *sensors[index as usize] = matches!(config, GpioConfig::Sensor);
 
         Ok(())
     }
