@@ -2,6 +2,13 @@
 
 # PiXtend
 
+[![Documentation](https://docs.rs/pixtend/badge.svg)]()
+[![Crates.io](https://img.shields.io/crates/v/pixtend.svg)](https://crates.io/crates/pixtend)
+[![License](https://img.shields.io/crates/l/pixtend.svg)]()
+[![Downloads](https://img.shields.io/crates/d/pixtend.svg)]()
+
+Rust crate for reading from and writing to the Raspberry PiXtend V2L board
+
 <img src="https://shop.pixtend.de/images/product_images/original_images/pixtend_v2_l_eplc_pro_angeschlossen_1.png" width="400px"/>
 
 </div>
