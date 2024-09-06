@@ -1,7 +1,13 @@
 [package]
 name = "pixtend"
+license = "MIT"
 version = "0.1.0"
 edition = "2021"
+authors = ["Daniel Kolter <danielkolter157@gmail.com>"]
+description = "Rust library for the PiXtend V2L board"
+repository = "https://github.com/DKolter/pixtend"
+keywords = ["pixtend", "raspberry", "board", "io", "pi"]
+categories = ["hardware-support"]
 
 [dependencies]
 deku = "0.17"
