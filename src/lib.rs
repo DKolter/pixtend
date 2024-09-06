@@ -53,7 +53,7 @@ impl PiXtend {
         // Create default configurations
         let gpio_configs = [GpioConfig::default(); 4];
         let pwm_configs = [PwmConfig::default(); 3];
-        let dac_configs = [Dac::new(Channel::A, 0.0), Dac::new(Channel::B, 0.0)];
+        let dac_configs = [Dac::new(Channel::A, None), Dac::new(Channel::B, None)];
 
         Ok(Self {
             spi_pixtend,
@@ -389,8 +389,9 @@ impl PiXtend {
     }
 
     /// Writes the given voltage to the analog output with the given channel. The voltage is
-    /// clamped between `0V` and `10V`.
-    pub fn set_analog_output(&mut self, channel: Channel, voltage: f64) {
+    /// clamped between `0V` and `10V`. If `None` is passed, the analog output is deactivated.
+    ///
+    pub fn set_analog_output(&mut self, channel: Channel, voltage: Option<f64>) {
         let dac = Dac::new(channel, voltage);
         self.dac_configs[channel as usize] = dac;
     }

@@ -12,9 +12,9 @@ pub struct Dac {
 }
 
 impl Dac {
-    pub fn new(channel: Channel, voltage: f64) -> Self {
-        let voltage = voltage.clamp(0.0, 10.0);
-        let voltage = ((voltage / 10.0) * 1023.0) as u16;
+    pub fn new(channel: Channel, voltage: Option<f64>) -> Self {
+        let value = voltage.unwrap_or_default().clamp(0.0, 10.0);
+        let value = ((value / 10.0) * 1023.0) as u16;
         let channel = match channel {
             Channel::A => 0,
             Channel::B => 1,
@@ -22,8 +22,8 @@ impl Dac {
 
         Self {
             channel,
-            enabled: true,
-            value: voltage,
+            enabled: voltage.is_some(),
+            value,
         }
     }
 }
